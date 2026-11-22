@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CelenganKu - Aplikasi Tabungan</title>
+
+  <!-- Pengaturan PWA -->
+  <meta name="theme-color" content="#2563eb">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="CelenganKu">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 font-sans pb-10">
+  <div class="max-w-md mx-auto bg-white min-h-screen shadow-lg flex flex-col">
+    <!-- Header -->
+    <div class="bg-blue-600 text-white p-6 rounded-b-3xl shadow-md">
+      <div class="flex justify-between items-start">
+        <div>
+          <h1 class="text-2xl font-bold">CelenganKu</h1>
+          <p class="text-sm text-blue-100">Kelola tabunganmu dengan mudah</p>
+        </div>
+        <!-- Tombol Backup & Restore -->
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="exportBackup()" title="Backup Data (Export JSON)" class="bg-white/15 hover:bg-white/25 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1">
+            <i class="fas fa-download"></i>
+            <span>Backup</span>
+          </button>
+          <button type="button" onclick="triggerRestore()" title="Restore Data (Import JSON)" class="bg-white/15 hover:bg-white/25 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1">
+            <i class="fas fa-upload"></i>
+            <span>Restore</span>
+          </button>
+          <input type="file" id="restore-file-input" accept=".json,application/json" class="hidden" onchange="importBackup(event)">
+        </div>
+      </div>
+
+      <!-- Banner Instal PWA -->
+      <div id="install-banner" class="hidden mt-4 bg-blue-700/80 border border-white/20 rounded-xl p-3 flex items-center justify-between text-xs">
+        <span>Pasang CelenganKu ke layar utama</span>
+        <button type="button" id="install-btn" class="bg-white text-blue-600 font-bold px-3 py-1 rounded-lg shadow-sm">
+          Instal
+        </button>
+      </div>
+
+      <!-- Total Saldo Card -->
+      <div class="mt-5 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20">
+        <div class="flex justify-between items-center text-blue-100 text-sm">
+          <span>Total Keseluruhan</span>
+          <button type="button" onclick="toggleBalanceVisibility()" class="focus:outline-none" aria-label="Sembunyikan atau tampilkan saldo">
+            <i id="eye-icon" class="fas fa-eye"></i>
+          </button>
+        </div>
+        <div id="total-balance" class="text-3xl font-extrabold mt-1">Rp 0</div>
+
+        <!-- Pemisahan Saldo Umum vs Saldo Target -->
+        <div class="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-white/20 text-xs">
+          <div class="bg-white/5 rounded-xl p-2">
+            <span class="text-amber-200 block"><i class="fas fa-wallet mr-1"></i>Saldo Umum</span>
+            <span id="general-balance" class="font-bold text-sm">Rp 0</span>
+          </div>
+          <div class="bg-white/5 rounded-xl p-2">
+            <span class="text-cyan-200 block"><i class="fas fa-bullseye mr-1"></i>Saldo Target</span>
+            <span id="goals-balance" class="font-bold text-sm">Rp 0</span>
+          </div>
+        </div>
+
+        <!-- Pemasukan & Pengeluaran -->
+        <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-white/15 text-xs">
+          <div>
+            <span class="text-green-300 block"><i class="fas fa-arrow-down mr-1"></i>Pemasukan</span>
+            <span id="total-income" class="font-bold text-sm">Rp 0</span>
+          </div>
+          <div>
+            <span class="text-red-300 block"><i class="fas fa-arrow-up mr-1"></i>Pengeluaran</span>
+            <span id="total-expense" class="font-bold text-sm">Rp 0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-6 space-y-6">
+      <!-- Quick Actions -->
+      <div class="grid grid-cols-2 gap-4">
+        <button type="button" onclick="openTransactionModal('income')" class="bg-green-500 hover:bg-green-600 text-white p-3 rounded-xl font-medium shadow-sm transition">
+          <i class="fas fa-plus-circle mr-2"></i>Tambah Saldo
+        </button>
+        <button type="button" onclick="openTransactionModal('expense')" class="bg-red-500 hover:bg-red-600 text-white p-3 rounded-xl font-medium shadow-sm transition">
+          <i class="fas fa-minus-circle mr-2"></i>Tarik Dana
+        </button>
+      </div>
+
+      <!-- Dana Umum (Terpisah dari Target) -->
+      <div>
+        <h2 class="text-lg font-bold text-gray-800 mb-3">Dana Umum</h2>
+        <div id="general-wallet-card" class="bg-amber-50/70 p-4 rounded-2xl shadow-sm border border-amber-200/80 flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+              <i class="fas fa-wallet"></i>
+            </div>
+            <div>
+              <h4 class="font-bold text-gray-800 text-sm">Saldo Umum (Non-Target)</h4>
+              <span class="text-xs text-gray-500">Uang tanpa alokasi target spesifik</span>
+            </div>
+          </div>
+          <span id="general-wallet-amount" class="font-extrabold text-sm text-amber-800">Rp 0</span>
+        </div>
+      </div>
+
+      <!-- Savings Goals Section -->
+      <div>
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-lg font-bold text-gray-800">Target Tabungan</h2>
+          <button type="button" onclick="openGoalModal()" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
+            <i class="fas fa-plus mr-1"></i>Tambah Target
+          </button>
+        </div>
+        <div id="goals-container" class="space-y-4"></div>
+      </div>
+
+      <!-- Transaction History -->
+      <div>
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Riwayat Transaksi</h2>
+        <div class="flex gap-2 mb-3">
+          <select id="filter-type" onchange="renderApp()" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 flex-1">
+            <option value="all">Semua Jenis</option>
+            <option value="income">Pemasukan</option>
+            <option value="expense">Penarikan</option>
+          </select>
+          <select id="filter-goal" onchange="renderApp()" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg p-2.5 flex-1">
+            <option value="all">Semua Kategori</option>
+          </select>
+        </div>
+        <div id="transactions-container" class="space-y-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transaction Modal -->
+  <div id="transaction-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-xl">
+      <h3 id="modal-title" class="text-xl font-bold">Catat Transaksi</h3>
+      <form id="transaction-form" onsubmit="handleTransaction(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Nominal (Rp)</label>
+          <input type="number" id="trans-amount" min="1" step="any" required class="mt-1 w-full border border-gray-300 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500">
+          <div class="flex gap-1 mt-2 flex-wrap">
+            <button type="button" onclick="setQuickAmount(50000)" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">50rb</button>
+            <button type="button" onclick="setQuickAmount(100000)" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">100rb</button>
+            <button type="button" onclick="setQuickAmount(500000)" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">500rb</button>
+            <button type="button" onclick="setQuickAmount(1000000)" class="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded">1jt</button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Kategori / Target</label>
+          <select id="trans-goal-id" class="mt-1 w-full border border-gray-300 rounded-lg p-2">
+            <option value="general">Umum (Tanpa Target Spesifik)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Catatan</label>
+          <input type="text" id="trans-note" placeholder="Contoh: Gaji bulanan, Beli laptop" class="mt-1 w-full border border-gray-300 rounded-lg p-2">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('transaction-modal')" class="px-4 py-2 bg-gray-200 rounded-lg text-gray-700">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Goal Modal -->
+  <div id="goal-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 shadow-xl">
+      <h3 class="text-xl font-bold">Tambah Target Tabungan</h3>
+      <form id="goal-form" onsubmit="handleGoal(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Nama Target</label>
+          <input type="text" id="goal-name" placeholder="Contoh: Dana Nikah, Beli HP" required class="mt-1 w-full border border-gray-300 rounded-lg p-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Target Nominal (Rp)</label>
+          <input type="number" id="goal-target" min="1" step="any" required class="mt-1 w-full border border-gray-300 rounded-lg p-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Ikon</label>
+          <select id="goal-icon" class="mt-1 w-full border border-gray-300 rounded-lg p-2">
+            <option value="fa-piggy-bank">Celengan</option>
+            <option value="fa-plane">Liburan</option>
+            <option value="fa-car">Kendaraan</option>
+            <option value="fa-home">Rumah</option>
+            <option value="fa-graduation-cap">Pendidikan</option>
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('goal-modal')" class="px-4 py-2 bg-gray-200 rounded-lg text-gray-700">Batal</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Simpan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (function setupPWA() {
+      if ('serviceWorker' in navigator && window.location.protocol.startsWith('http')) {
+        navigator.serviceWorker.register('./sw.js').catch((err) => {
+          console.warn('Registrasi Service Worker gagal:', err);
+        });
+      }
+
+      let deferredPrompt;
+      const installBanner = document.getElementById('install-banner');
+      const installBtn = document.getElementById('install-btn');
+
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBanner.classList.remove('hidden');
+      });
+
+      installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        installBanner.classList.add('hidden');
+      });
+    })();
+
+    const defaultGoals = [
+      { id: 'g1', name: 'Dana Darurat', target: 10000000, icon: 'fa-piggy-bank' },
+      { id: 'g2', name: 'Liburan Akhir Tahun', target: 5000000, icon: 'fa-plane' }
+    ];
+
+    const defaultTransactions = [
+      { id: 't1', type: 'income', amount: 2000000, goalId: 'g1', note: 'Tabungan awal', date: new Date().toISOString() }
+    ];
+
+    function loadStorage(key, fallback) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    let state = {
+      goals: loadStorage('celenganku_goals', defaultGoals),
+      transactions: loadStorage('celenganku_transactions', defaultTransactions),
+      isBalanceHidden: false,
+      activeTransType: 'income',
+      currentBalance: 0,
+      generalBalance: 0,
+      goalsBalance: 0,
+      totalIncome: 0,
+      totalExpense: 0
+    };
+
+    function saveState() {
+      localStorage.setItem('celenganku_goals', JSON.stringify(state.goals));
+      localStorage.setItem('celenganku_transactions', JSON.stringify(state.transactions));
+    }
+
+    function exportBackup() {
+      const payload = {
+        app: 'CelenganKu',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        goals: state.goals,
+        transactions: state.transactions
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `celenganku-backup-${dateStamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function triggerRestore() {
+      document.getElementById('restore-file-input').click();
+    }
+
+    function importBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!Array.isArray(data.goals) || !Array.isArray(data.transactions)) {
+            alert('Format file backup tidak valid.');
+            return;
+          }
+          if (confirm('Data tabungan saat ini akan diganti dengan data dari file backup. Lanjutkan?')) {
+            state.goals = data.goals;
+            state.transactions = data.transactions;
+            saveState();
+            renderApp();
+            alert('Data berhasil dipulihkan!');
+          }
+        } catch {
+          alert('Gagal membaca file JSON. Pastikan file backup tidak rusak.');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function formatRupiah(number) {
+      return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0
+      }).format(number);
+    }
+
+    function applyBalanceDisplay() {
+      const mapping = [
+        { id: 'total-balance', value: state.currentBalance },
+        { id: 'general-balance', value: state.generalBalance },
+        { id: 'goals-balance', value: state.goalsBalance },
+        { id: 'general-wallet-amount', value: state.generalBalance },
+        { id: 'total-income', value: state.totalIncome },
+        { id: 'total-expense', value: state.totalExpense }
+      ];
+
+      mapping.forEach(({ id, value }) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.innerText = state.isBalanceHidden ? '••••••••' : formatRupiah(value);
+        }
+      });
+
+      const eyeIcon = document.getElementById('eye-icon');
+      eyeIcon.classList.toggle('fa-eye', !state.isBalanceHidden);
+      eyeIcon.classList.toggle('fa-eye-slash', state.isBalanceHidden);
+    }
+
+    function toggleBalanceVisibility() {
+      state.isBalanceHidden = !state.isBalanceHidden;
+      applyBalanceDisplay();
+    }
+
+    function openTransactionModal(type) {
+      state.activeTransType = type;
+      document.getElementById('modal-title').innerText = type === 'income' ? 'Tambah Saldo (Setoran)' : 'Tarik Dana';
+      document.getElementById('trans-amount').value = '';
+      document.getElementById('trans-note').value = '';
+
+      const goalSelect = document.getElementById('trans-goal-id');
+      goalSelect.innerHTML = '<option value="general">Umum (Tanpa Target Spesifik)</option>';
+      state.goals.forEach(goal => {
+        const option = document.createElement('option');
+        option.value = goal.id;
+        option.textContent = goal.name;
+        goalSelect.appendChild(option);
+      });
+
+      const modal = document.getElementById('transaction-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function openGoalModal() {
+      document.getElementById('goal-name').value = '';
+      document.getElementById('goal-target').value = '';
+      const modal = document.getElementById('goal-modal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function setQuickAmount(amount) {
+      document.getElementById('trans-amount').value = amount;
+    }
+
+    function handleTransaction(e) {
+      e.preventDefault();
+      const amount = parseFloat(document.getElementById('trans-amount').value);
+      const goalId = document.getElementById('trans-goal-id').value;
+      const note = document.getElementById('trans-note').value.trim();
+
+      if (isNaN(amount) || amount <= 0) return;
+
+      const newTransaction = {
+        id: 't_' + Date.now(),
+        type: state.activeTransType,
+        amount,
+        goalId,
+        note,
+        date: new Date().toISOString()
+      };
+
+      state.transactions.unshift(newTransaction);
+      saveState();
+      closeModal('transaction-modal');
+      renderApp();
+    }
+
+    function handleGoal(e) {
+      e.preventDefault();
+      const name = document.getElementById('goal-name').value.trim();
+      const target = parseFloat(document.getElementById('goal-target').value);
+      const icon = document.getElementById('goal-icon').value;
+
+      if (!name || isNaN(target) || target <= 0) return;
+
+      const newGoal = {
+        id: 'g_' + Date.now(),
+        name,
+        target,
+        icon
+      };
+
+      state.goals.push(newGoal);
+      saveState();
+      closeModal('goal-modal');
+      renderApp();
+    }
+
+    function deleteGoal(goalId) {
+      if (confirm('Menghapus target akan memindahkan saldo target ini ke Saldo Umum. Lanjutkan?')) {
+        state.goals = state.goals.filter(g => g.id !== goalId);
+        state.transactions.forEach(t => {
+          if (t.goalId === goalId) t.goalId = 'general';
+        });
+        saveState();
+        renderApp();
+      }
+    }
+
+    function renderApp() {
+      let totalIncome = 0;
+      let totalExpense = 0;
+      let generalIncome = 0;
+      let generalExpense = 0;
+      let goalsIncome = 0;
+      let goalsExpense = 0;
+
+      const goalProgress = {};
+      state.goals.forEach(g => {
+        goalProgress[g.id] = 0;
+      });
+
+      state.transactions.forEach(t => {
+        const isGoalTransaction = goalProgress[t.goalId] !== undefined;
+
+        if (t.type === 'income') {
+          totalIncome += t.amount;
+          if (isGoalTransaction) {
+            goalProgress[t.goalId] += t.amount;
+            goalsIncome += t.amount;
+          } else {
+            generalIncome += t.amount;
+          }
+        } else if (t.type === 'expense') {
+          totalExpense += t.amount;
+          if (isGoalTransaction) {
+            goalProgress[t.goalId] -= t.amount;
+            goalsExpense += t.amount;
+          } else {
+            generalExpense += t.amount;
+          }
+        }
+      });
+
+      state.totalIncome = totalIncome;
+      state.totalExpense = totalExpense;
+      state.generalBalance = generalIncome - generalExpense;
+      state.goalsBalance = goalsIncome - goalsExpense;
+      state.currentBalance = state.generalBalance + state.goalsBalance;
+      applyBalanceDisplay();
+
+      const goalsContainer = document.getElementById('goals-container');
+      goalsContainer.innerHTML = '';
+      if (state.goals.length === 0) {
+        goalsContainer.innerHTML = '<div class="text-center py-4 text-gray-400 text-sm">Belum ada target tabungan</div>';
+      } else {
+        state.goals.forEach(goal => {
+          const currentAmount = goalProgress[goal.id] || 0;
+          const percentage = Math.max(0, Math.min(Math.round((currentAmount / goal.target) * 100), 100));
+          const isCompleted = currentAmount >= goal.target;
+
+          goalsContainer.innerHTML += `
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
+              <div class="flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                  <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <i class="fas ${goal.icon}"></i>
+                  </div>
+                  <div>
+                    <h4 class="font-bold text-gray-800">${goal.name}</h4>
+                    <span class="text-xs text-gray-500">${formatRupiah(currentAmount)} / <span class="font-medium">${formatRupiah(goal.target)}</span></span>
+                  </div>
+                </div>
+                <button type="button" onclick="deleteGoal('${goal.id}')" class="text-gray-400 hover:text-red-500" aria-label="Hapus target">
+                  <i class="fas fa-trash-alt text-xs"></i>
+                </button>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style="width: ${percentage}%"></div>
+              </div>
+              <div class="flex justify-between text-xs text-gray-500 font-medium">
+                <span>${percentage}% Tercapai</span>
+                <span>${isCompleted ? '🎉 Target Tercapai!' : ''}</span>
+              </div>
+            </div>
+          `;
+        });
+      }
+
+      const filterType = document.getElementById('filter-type').value;
+      const filterGoal = document.getElementById('filter-goal').value;
+      const filteredTransactions = state.transactions.filter(t => {
+        const matchesType = filterType === 'all' || t.type === filterType;
+        const isGeneralTx = goalProgress[t.goalId] === undefined;
+        const matchesGoal =
+          filterGoal === 'all' ||
+          (filterGoal === 'general' && isGeneralTx) ||
+          t.goalId === filterGoal;
+        return matchesType && matchesGoal;
+      });
+
+      const transContainer = document.getElementById('transactions-container');
+      transContainer.innerHTML = '';
+      if (filteredTransactions.length === 0) {
+        transContainer.innerHTML = '<div class="text-center py-6 text-gray-400 text-sm">Belum ada transaksi</div>';
+      } else {
+        filteredTransactions.forEach(t => {
+          const isIncome = t.type === 'income';
+          const amountSign = isIncome ? '+' : '-';
+          const amountColor = isIncome ? 'text-green-600' : 'text-red-600';
+          const goalObj = state.goals.find(g => g.id === t.goalId);
+          const goalName = goalObj ? goalObj.name : 'Umum';
+          const badgeColor = goalObj ? 'text-blue-500' : 'text-amber-600';
+          const dateFormatted = new Date(t.date).toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          });
+
+          transContainer.innerHTML += `
+            <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+              <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-full ${isIncome ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'} flex items-center justify-center">
+                  <i class="fas ${isIncome ? 'fa-arrow-down' : 'fa-arrow-up'} text-xs"></i>
+                </div>
+                <div>
+                  <h5 class="font-medium text-sm text-gray-800">${t.note || (isIncome ? 'Pemasukan' : 'Pengeluaran')}</h5>
+                  <span class="text-xs text-gray-400">${dateFormatted} • <span class="${badgeColor} font-medium">${goalName}</span></span>
+                </div>
+              </div>
+              <span class="font-bold text-sm ${amountColor}">${amountSign} ${formatRupiah(t.amount)}</span>
+            </div>
+          `;
+        });
+      }
+
+      const filterGoalSelect = document.getElementById('filter-goal');
+      const currentSelectedGoal = filterGoalSelect.value;
+      filterGoalSelect.innerHTML = `
+        <option value="all">Semua Kategori</option>
+        <option value="general">Umum (Non-Target)</option>
+      `;
+      state.goals.forEach(goal => {
+        const option = document.createElement('option');
+        option.value = goal.id;
+        option.textContent = goal.name;
+        filterGoalSelect.appendChild(option);
+      });
+      if (Array.from(filterGoalSelect.options).some(opt => opt.value === currentSelectedGoal)) {
+        filterGoalSelect.value = currentSelectedGoal;
+      }
+    }
+
+    renderApp();
+  </script>
+</body>
+</html>
